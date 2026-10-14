@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.contrib.auth.models import Group, Permission, User
 
 from datetime import date
 from decimal import Decimal
@@ -41,3 +42,41 @@ class ClienteAtencionTests(TestCase):
         self.cliente.delete()
 
         self.assertEqual(Atencion.objects.count(), 0)
+
+    def test_montos_se_pueden_mostrar_como_pesos_chilenos(self):
+        from .admin import formato_pesos
+
+        self.assertEqual(formato_pesos(Decimal('12990')), '$12.990')
+
+
+class PermisosTests(TestCase):
+    def test_digitador_no_tiene_permiso_para_eliminar(self):
+        grupo = Group.objects.create(name='Digitador')
+        permisos = Permission.objects.filter(
+            content_type__app_label='mascotas',
+            content_type__model__in=('cliente', 'atencion'),
+            codename__in=('view_cliente', 'add_cliente', 'change_cliente',
+                          'view_atencion', 'add_atencion', 'change_atencion'),
+        )
+        grupo.permissions.set(permisos)
+        usuario = User.objects.create_user('digitador')
+        usuario.groups.add(grupo)
+
+        self.assertTrue(usuario.has_perm('mascotas.add_cliente'))
+        self.assertTrue(usuario.has_perm('mascotas.change_atencion'))
+        self.assertFalse(usuario.has_perm('mascotas.delete_cliente'))
+
+    def test_revisor_solo_tiene_permisos_de_lectura(self):
+        grupo = Group.objects.create(name='Revisor')
+        permisos = Permission.objects.filter(
+            content_type__app_label='mascotas',
+            content_type__model__in=('cliente', 'atencion'),
+            codename__in=('view_cliente', 'view_atencion'),
+        )
+        grupo.permissions.set(permisos)
+        usuario = User.objects.create_user('revisor')
+        usuario.groups.add(grupo)
+
+        self.assertTrue(usuario.has_perm('mascotas.view_cliente'))
+        self.assertFalse(usuario.has_perm('mascotas.add_cliente'))
+        self.assertFalse(usuario.has_perm('mascotas.delete_atencion'))
